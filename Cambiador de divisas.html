@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css">
+    <script defer src="https://pyscript.net/latest/pyscript.js"></script> 
+    <style>
+        /* Reset general para eliminar márgenes y bordes predeterminados */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Estilo global de la página */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            padding: 20px;
+            text-align: center;
+        }
+
+        /* Estilo para el título principal */
+        h1 {
+            color: #4CAF50;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        /* Estilo para el contenedor principal */
+        div {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            margin: 0 auto;
+        }
+
+        /* Estilo para las etiquetas de los formularios */
+        label {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            display: block;
+            text-align: left;
+        }
+
+        /* Estilo para los campos de entrada */
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin: 8px 0 20px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        /* Estilo para el botón de conversión */
+        button {
+            background-color: #4CAF50;
+            color: white;
+            font-size: 1.1rem;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        /* Estilo para el resultado */
+        h2#resultado {
+            font-size: 1.5rem;
+            margin-top: 30px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        /* Estilo para los errores */
+        .error {
+            color: red;
+            font-size: 1.1rem;
+        }
+
+        /* Estilo para los selectores */
+        select {
+            cursor: pointer;
+        }
+
+        /* Media query para mejorar la visualización en dispositivos móviles */
+        @media (max-width: 600px) {
+            div {
+                width: 100%;
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+    <title>Conversor de Divisas</title>
+</head>
+
+<body>
+    <h1>Conversor de Divisas</h1>
+
+    <div>
+        <label for="cantidad">Cantidad:</label>
+        <input type="number" step="any" id="cantidad" required><br><br>
+
+        <label for="divisa_origen">Divisa de origen:</label>
+        <select id="divisa_origen" required></select><br><br>
+
+        <label for="divisa_destino">Divisa de destino:</label>
+        <select id="divisa_destino" required></select><br><br>
+
+        <button type="button" id="convertir">Convertir</button>
+    </div>
+
+    <h2 id="resultado"></h2>
+
+    <py-script>
+        from js import document
+        from pyodide.ffi import create_proxy
+
+        # Lista de divisas con códigos, nombres y valores respecto al MXN
+        divisas = [
+            ("MXN", "Peso mexicano", 1.00), 
+            ("USD", "Dólar estadounidense", 0.050), 
+            ("EUR", "Euro", 0.047), 
+            ("JPY", "Yen japonés", 7.40),
+            ("GBP", "Libra esterlina", 0.039), 
+            ("AUD", "Dólar australiano", 15.62), 
+            ("CAD", "Dólar canadiense", 0.077),
+            ("CHF", "Franco suizo", 0.043), 
+            ("CNY", "Yuan chino", 0.36), 
+            ("SEK", "Corona sueca", 0.54),
+            ("NZD", "Dólar neozelandés", 0.084), 
+            ("INR", "Rupia india", 4.19),
+            ("BRL", "Real brasileño", 0.30), 
+            ("RUB", "Rublo ruso", 4.96), 
+            ("ZAR", "Rand sudafricano", 0.89),
+            ("HKD", "Dólar de Hong Kong", 0.38), 
+            ("SGD", "Dólar de Singapur", 0.066), 
+            ("KRW", "Won surcoreano", 70.31),
+            ("TRY", "Lira turca", 1.72), 
+            ("SAR", "Riyal saudí", 0.19), 
+            ("PLN", "Zloty polaco", 0.20)
+        ]
+
+        # Generar tasas de cambio basadas en valores de divisas
+        exchange_rates = {divisa[0]: {} for divisa in divisas}
+        for i, (codigo_origen, _, valor_origen) in enumerate(divisas):
+            for j, (codigo_destino, _, valor_destino) in enumerate(divisas):
+                if codigo_origen == codigo_destino:
+                    exchange_rates[codigo_origen][codigo_destino] = 1.0
+                else:
+                    exchange_rates[codigo_origen][codigo_destino] = round(valor_destino / valor_origen, 2)
+
+        def llenar_select():
+            """
+            Llena las listas desplegables con las divisas disponibles.
+            """
+            origen = document.getElementById("divisa_origen")
+            destino = document.getElementById("divisa_destino")
+            for codigo, nombre, _ in divisas:
+                option1 = document.createElement("option")
+                option2 = document.createElement("option")
+                option1.value = codigo
+                option1.text = f"{nombre} ({codigo})"
+                option2.value = codigo
+                option2.text = f"{nombre} ({codigo})"
+                origen.add(option1)
+                destino.add(option2)
+
+        def convertir(event):
+            """
+            Realiza la conversión de divisas.
+            """
+            try:
+                cantidad = float(document.getElementById("cantidad").value)
+                divisa_origen = document.getElementById("divisa_origen").value
+                divisa_destino = document.getElementById("divisa_destino").value
+
+                if divisa_origen == divisa_destino:
+                    resultado = cantidad
+                else:
+                    tasa = exchange_rates.get(divisa_origen, {}).get(divisa_destino, None)
+                    if tasa is not None:
+                        resultado = cantidad * tasa
+                    else:
+                        resultado = "Conversión no disponible."
+
+                mensaje = (
+                    f"Resultado: {resultado:.2f} {divisa_destino}"
+                    if isinstance(resultado, (int, float))
+                    else resultado
+                )
+            except Exception:
+                mensaje = "Error: Asegúrate de ingresar una cantidad válida."
+
+            document.getElementById("resultado").innerText = mensaje
+
+        # Llenar las listas desplegables al inicio
+        llenar_select()
+
+        # Crear proxy para evitar que se destruyan las referencias
+        convertir_proxy = create_proxy(convertir)
+        document.getElementById("convertir").addEventListener("click", convertir_proxy)
+    </py-script>
+</body>
+
+</html>
